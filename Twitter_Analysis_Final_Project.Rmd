@@ -1,0 +1,147 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+
+
+Title: "Analysis of Four Types of Masks Tweeted During the Covid-19 Pandemic"
+Author: "******" "******" "May 6, 2020"
+  
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Executive Summary
+
+According to the Centers for Disease Control and Prevention ([CDC], 2020), many people may have contracted COVID19, but not show symptoms. As a result, people could unknowingly transmit the virus to others via sneezing, coughing, or speaking. Considering this knowledge, the CDC recommends that civilians wear cloth masks for facial coverage while out in public. Alternately, frontline healthcare workers (FHWs) should wear respirators called N95s, when treating patients with COVID19. Nevertheless, there is a global shortage of masks and a strategy to optimize the use of N95s for FHWs is to encourage the public to wear other versions of face coverings, for instance homemade masks. The purpose of this work is to collect data from Twitter and analyze what people are saying about face masks. We wish to discover if the distribution of people who commented about cloth, homemade, surgical masks, or N95s occurred in equal proportions, or whether there were more comments about one or more types of masks. The results may be informative to public health leaders and FHWs to reveal whether civilians were discussing issues of facemasks in the current pandemic.
+```{r, echo=FALSE, include=FALSE}
+tweets <- read.csv("tweets1.csv")
+```
+##Keywords, Data Collection and Analysis
+
+Keywords used to collect data from Twitter were “mask” and “N95.” The word “mask” was chosen to get maximum amounts of tweets, while the word “respirator” was omitted, since the words “N95 & respirator” together produced limited tweets. These keywords include the recommended face coverings of the CDC and therefore appropriate to address the research question.
+The dataset contained `r nrow(tweets)` tweets and Python software was used to extract tweets from Twitter’s RepresentationalStateTransfer (REST) architecture and streaming Application Programming Interfaces (APIs). The REST API collected data over seven days, while data from the streaming API were collected May 3, 2020. Data were cleaned and duplicates and retweets excluded. Tweets were then formatted and saved to a file for statistical computing and graphical analysis with another programming language called R. A chi-squared goodness of fit test was used to determine whether the frequencies of the observed sample differed significantly from the expected frequencies. The null hypothesis assumed no difference between the observed and expected values of tweets that appeared with the keywords. In essence, the prediction was that each of the four types of masks were equally distributed or equally likely to be tweeted about.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+```
+```{r include=FALSE}
+library(tidyverse)
+library(stringi)
+library(janitor)
+options(kableExtra.latex.load_packages = T)
+library(kableExtra)
+library(knitr)
+```
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+  tweets %>% 
+  select(full_text) %>%
+  head() %>%
+  knitr::kable(format = "markdown") %>%
+kableExtra::kable_styling()
+```
+
+```{r, echo=FALSE, include=FALSE}
+summary(tweets)
+```
+```{r, include=FALSE, echo=FALSE}
+scf_ci <- function(x, s) stri_detect_fixed(x, s, case_insensitive = TRUE)
+
+categorized <- tweets %>% 
+  filter(scf_ci(full_text, "covid") | scf_ci(full_text, "virus")) %>%
+  mutate(
+    full_text,
+    contains_mask = scf_ci(full_text, "mask"),
+    homemade = scf_ci(full_text, "homemade"), 
+    cloth = scf_ci(full_text, "cloth"),
+    surgical = contains_mask & scf_ci(full_text, "surgical"),
+    n95 = contains_mask & scf_ci(full_text, "n95")) %>% 
+  filter((homemade | cloth | surgical | n95))
+```
+
+```{r, echo=FALSE, message=FALSE}
+counts <- categorized %>%
+  summarise_at(c("homemade", "cloth", "surgical", "n95"), sum) %>%
+  pivot_longer(everything(), names_to = "type", values_to = "count") %>%
+  mutate(percentage = round(count / sum(count) * 100, 2))
+  
+types_barplot <- counts %>% 
+  ggplot(aes(x = type, y = count))+
+  geom_bar(stat = 'identity')+
+  theme_minimal() + 
+  xlab("Type") +
+  ylab("Count") +
+  ggtitle("Count of Tweets by Type")
+types_barplot
+```
+
+### Counts table
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+counts %>%
+ knitr::kable(format = "markdown") %>%
+ kable_styling(latex_options = "striped")#kable only knits to html
+  
+#kable_styling(kaple_input, latex_options = "striped") 
+#print(counts %>% as.data.frame())
+ #counts %>% kable(align = c("l") ) %>% 
+  #  kable_styling(bootstrap_options = c("striped")) %>% 
+   #   kable_styling(font_size = 12, full_width = F)
+```
+
+```{r, echo=FALSE, message=FALSE}
+retweets <-tweets %>% 
+  filter(scf_ci(full_text, "covid") | scf_ci(full_text, "virus")) %>%
+  mutate(
+    full_text,
+    contains_mask = scf_ci(full_text, "mask"),
+    homemade = scf_ci(full_text, "homemade"), 
+    cloth = scf_ci(full_text, "cloth"),
+    surgical = contains_mask & scf_ci(full_text, "surgical"),
+    n95 = contains_mask & scf_ci(full_text, "n95"),
+    ) %>% 
+  mutate(mask = sum(retweet_count[contains_mask]),
+         homemade = sum(retweet_count[homemade]),
+         cloth = sum(retweet_count[cloth]),
+         surgical = sum(retweet_count[surgical]),
+          n95 = sum(retweet_count[n95]),
+         ) %>% 
+  select(mask, homemade, cloth, surgical, n95) %>% 
+  distinct()
+```
+
+```{r, echo=FALSE, message=FALSE}
+plot3 <- data.frame(masks = names(retweets),#better view
+                   Values = as.numeric(retweets)) %>% 
+  ggplot(aes(x = masks, y = Values)) +
+  geom_point()+
+  geom_smooth() +
+  theme_bw() + 
+  scale_y_log10() 
+```
+##Hypothesis Testing
+
+Chi-squared Goodness of fit test was used under the assumption that the distribution of tweets among the four types of masks were similar. The null hypothesis was no difference between the observed and expected values (p1 = p2 = p3 = p4). Each of the four types of masks were equally distributed or were equally likely to be tweeted about. While the alternative hypothesis expected a difference between the observed and expected values. In other words, at least one of the four types of masks were unequally distributed or unequally likely to be tweeted about (1/4). A chi-squared goodness of fit test was used to determine whether the frequencies of the observed sample differed significantly from the expected frequencies specified in the null hypothesis.    
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+masks_types <- c("homemade", "cloth", "surgical", "n95")
+res <- chisq.test(counts$count, p = c(1/4, 1/4, 1/4, 1/4))
+#print(res)
+
+ broom::tidy(res) %>%
+  knitr::kable() %>%
+ kableExtra::kable_styling(bootstrap_options = c("striped")) 
+  kableExtra::footnote(alphabet = "chisq.test results")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```
+```{r, echo=FALSE, message=FALSE}
+#res$expected #expected counts > 5
+```
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+```
+## Findings and Conclusion
+ 
+Based on a p-value of < 2.2e-16 (significance level of 0.05), there were enough evidence to reject the null hypothesis and support the claim that there was a significant difference between the observed and expected values. In other words, at least one of the four types of masks were unequally distributed, or unequally likely to be tweeted about (1/4). Likewise, real time sentiment analysis revealed that people’s attitudes and written opinions about masks were neutral. Those who wear face coverings commonly state how uncomfortable some masks can be. Yet, tweets mentioned N95 respirators the most, while homemade masks were referred to the least (Figures 1 & 2). The social implications of these findings suggest that people from the “Twitter verse” may not be very concerned about face coverings as personal protection and may continue to spread the virus.  
